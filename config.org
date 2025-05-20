@@ -1,0 +1,1187 @@
+#+TITLE: Config 
+#+Author: Lafith Mattara
+
+* Early-init file
+Prevent package.el loading packages prior to their init-file loading. Disables the automatic loading of packages by the built-in package.el system during startup.
+This is commonly done when you use alternative package managers
+
+#+begin_src emacs-lisp :tangle "~/.emacs.d/early-init.el" :mkdirp yes
+(setq package-enable-at-startup nil)
+#+end_src
+
+Emacs has a Just-In-Time (JIT) compiler called native-comp that compiles Emacs Lisp (.el) files to native code (.eln files) for performance improvements. These .eln files are stored and loaded at startup, just like compiled .elc files — but faster.
+Since I am using muliple emacs versions built from source following snippet ensures all versions point to the same cache.
+
+#+begin_src emacs-lisp :tangle "~/.emacs.d/early-init.el" :mkdirp yes
+(when (boundp 'native-comp-eln-load-path)
+  (startup-redirect-eln-cache (expand-file-name "eln-cache/" user-emacs-directory)))
+#+end_src
+
+Some GUI changes before we start.
+
+#+begin_src emacs-lisp :tangle "~/.emacs.d/early-init.el" :mkdirp yes
+;; minimal UI
+(menu-bar-mode -1) ;; disables menubar
+(tool-bar-mode -1) ;; disables toolbar
+(scroll-bar-mode -1) ;; disables scrollbar
+(pixel-scroll-precision-mode 1) ;; enable smooth scrolling
+
+(setq warning-minimum-level :error)
+(add-to-list 'default-frame-alist '(fullscreen . maximized))
+
+(setq inhibit-splash-screen t ;; no thanks
+        use-file-dialog nil ;; don't use system file dialog
+        tab-bar-new-button-show nil ;; don't show new tab button
+        tab-bar-close-button-show nil ;; don't show tab close button
+        tab-line-close-button-show nil) ;; don't show tab close button
+#+end_src
+
+* Setting up elpaca as the package manager
+
+Taken directly from elpaca documentation.
+
+#+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
+(defvar elpaca-installer-version 0.11)
+(defvar elpaca-directory (expand-file-name "elpaca/" user-emacs-directory))
+(defvar elpaca-builds-directory (expand-file-name "builds/" elpaca-directory))
+(defvar elpaca-repos-directory (expand-file-name "repos/" elpaca-directory))
+(defvar elpaca-order '(elpaca :repo "https://github.com/progfolio/elpaca.git"
+                              :ref nil :depth 1 :inherit ignore
+                              :files (:defaults "elpaca-test.el" (:exclude "extensions"))
+                              :build (:not elpaca--activate-package)))
+(let* ((repo  (expand-file-name "elpaca/" elpaca-repos-directory))
+       (build (expand-file-name "elpaca/" elpaca-builds-directory))
+       (order (cdr elpaca-order))
+       (default-directory repo))
+  (add-to-list 'load-path (if (file-exists-p build) build repo))
+  (unless (file-exists-p repo)
+    (make-directory repo t)
+    (when (<= emacs-major-version 28) (require 'subr-x))
+    (condition-case-unless-debug err
+        (if-let* ((buffer (pop-to-buffer-same-window "*elpaca-bootstrap*"))
+                  ((zerop (apply #'call-process `("git" nil ,buffer t "clone"
+                                                  ,@(when-let* ((depth (plist-get order :depth)))
+                                                      (list (format "--depth=%d" depth) "--no-single-branch"))
+                                                  ,(plist-get order :repo) ,repo))))
+                  ((zerop (call-process "git" nil buffer t "checkout"
+                                        (or (plist-get order :ref) "--"))))
+                  (emacs (concat invocation-directory invocation-name))
+                  ((zerop (call-process emacs nil buffer nil "-Q" "-L" "." "--batch"
+                                        "--eval" "(byte-recompile-directory \".\" 0 'force)")))
+                  ((require 'elpaca))
+                  ((elpaca-generate-autoloads "elpaca" repo)))
+            (progn (message "%s" (buffer-string)) (kill-buffer buffer))
+          (error "%s" (with-current-buffer buffer (buffer-string))))
+      ((error) (warn "%s" err) (delete-directory repo 'recursive))))
+  (unless (require 'elpaca-autoloads nil t)
+    (require 'elpaca)
+    (elpaca-generate-autoloads "elpaca" repo)
+    (let ((load-source-file-function nil)) (load "./elpaca-autoloads"))))
+(add-hook 'after-init-hook #'elpaca-process-queues)
+(elpaca `(,@elpaca-order))
+#+end_src
+
+Install use-package support and enable use-package :ensure support for Elpaca.
+
+#+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
+(elpaca elpaca-use-package
+  (elpaca-use-package-mode))
+  (setq use-package-always-ensure t)
+#+end_src
+
+:ensure t = install it if i dont have it
+:ensure nil = dont install just configure (for builtin emacs stuff)
+:demand t = load it right now instead of waiting till i use it later
+:ensure (:wait t)   = install the package right now and wait it till it get finished without moving forward.
+* Change some builtin settings in emacs
+
+https://idiomdrottning.org/bad-emacs-defaults
+
+#+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
+(use-package emacs
+  :ensure nil
+  :init
+
+  (setq enable-recursive-minibuffers t)
+
+  (setq backup-by-copying t)
+
+  (setq sentence-end-double-space nil)
+
+  (setq frame-inhibit-implied-resize t) ;; useless for a tiling window manager
+
+  (setq show-trailing-whitespace t) ;; self-explanatory
+
+  (setq user-full-name "Patrick D. Elliott") ;; my details
+  (setq user-mail-address "patrick.d.elliott@gmail.com")
+
+  (defalias 'yes-or-no-p 'y-or-n-p) ;; life is too short
+
+  (setq indent-tabs-mode nil) ;; no tabs
+
+  ;; keep backup and save files in a dedicated directory
+  (setq backup-directory-alist
+          `((".*" . ,(concat user-emacs-directory "backups")))
+          auto-save-file-name-transforms
+          `((".*" ,(concat user-emacs-directory "backups") t)))
+
+  (setq create-lockfiles nil) ;; no need to create lockfiles
+
+  (set-charset-priority 'unicode) ;; utf8 everywhere
+  (setq locale-coding-system 'utf-8
+          coding-system-for-read 'utf-8
+          coding-system-for-write 'utf-8)
+  (set-terminal-coding-system 'utf-8)
+  (set-keyboard-coding-system 'utf-8)
+  (set-selection-coding-system 'utf-8)
+  (prefer-coding-system 'utf-8)
+  (setq default-process-coding-system '(utf-8-unix . utf-8-unix))
+
+  (global-set-key (kbd "<escape>") 'keyboard-escape-quit) ;; escape quits everything
+
+
+  ;; Don't persist a custom file
+  (setq custom-file (make-temp-file "")) ; use a temp file as a placeholder
+  (setq custom-safe-themes t)            ; mark all themes as safe, since we can't persist now
+  (setq enable-local-variables :all)     ; fix =defvar= warnings
+
+  (setq delete-by-moving-to-trash t) ;; use trash-cli rather than rm when deleting files.
+
+  ;; less noise when compiling elisp
+  (setq byte-compile-warnings '(not free-vars unresolved noruntime lexical make-local))
+  (setq native-comp-async-report-warnings-errors nil)
+  (setq load-prefer-newer t)
+
+  (show-paren-mode t)
+
+  ;; Hide commands in M-x which don't work in the current mode
+  (setq read-extended-command-predicate #'command-completion-default-include-p))
+#+end_src
+
+* Custom key bindings
+#+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
+(use-package general
+  :ensure (:wait t)
+  :demand
+  :config
+  (general-evil-setup)
+
+  (general-create-definer leader-keys
+    :states '(normal insert visual emacs)
+    :keymaps 'override
+    :prefix "SPC"
+    :global-prefix "C-SPC")
+
+  ;; defer leader bindings until after Elpaca loads everything
+  (add-hook 'elpaca-after-init-hook
+            (lambda ()
+              (leader-keys
+                "r" '(restart-emacs :which-key "restart emacs")
+                "f" '(recentf :which-key "recent files")
+                "i" '((lambda () (interactive) (find-file user-init-file)) :which-key "open init file")))))
+#+end_src
+
+* Transient key bindings (hydra)
+#+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
+
+;; resolve version incompatibility by force installing latest version of transient
+(use-package transient
+  :ensure (transient :host github :repo "magit/transient")
+  :demand t)
+
+(use-package hydra
+  :ensure t)
+
+(add-hook 'elpaca-after-init-hook
+          (lambda ()
+            (defhydra hydra-text-scale (:timeout 4)
+              "scale text"
+              ("j" text-scale-increase "in")
+              ("k" text-scale-decrease "out")
+              ("f" nil "finished" :exit t))
+
+            (defhydra switch-buffer (:timeout 4)
+              "switch buffers"
+              ("k" switch-to-next-buffer "next")
+              ("j" switch-to-prev-buffer "prev")
+              ("d" (kill-buffer (current-buffer)) "kill")
+              ("f" nil "finished" :exit t))
+
+            (leader-keys
+              "s" '(hydra-text-scale/body :which-key "scale text")
+              "b" '(switch-buffer/body :which-key "switch buffer"))))
+#+end_src
+
+* Skip buffers when switching
+#+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
+(defcustom aj8/buffer-skip-regexp
+  (rx bos (or "*GNU Emacs*" "*straight-process*" "*Backtrace*" "*Compile-Log*" "*Completions*"
+              "*package*" "*Warnings*" "*Async-native-compile-log*" "*scratch*"
+              (seq "magit-diff" (* anything))
+              (seq "magit-process" (* anything))
+              (seq "magit-revision" (* anything))
+              (seq "magit-stash" (* anything)))
+      eos)
+  "Regular expression matching buffers ignored by `next-buffer' and
+`previous-buffer'."
+  :type 'regexp)
+
+(defun aj8/buffer-skip-p (window buffer bury-or-kill)
+  "Return t if BUFFER name matches `aj8/buffer-skip-regexp'."
+  (string-match-p aj8/buffer-skip-regexp (buffer-name buffer)))
+
+(setq switch-to-prev-buffer-skip 'aj8/buffer-skip-p)
+(setq switch-to-next-buffer-skip 'aj8/buffer-skip-p)
+#+end_src
+
+* Show key recommendations
+#+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
+(use-package which-key
+  :ensure t
+  :demand
+  :init
+  (setq which-key-idle-delay 0.5)
+  :config
+  (which-key-mode))
+#+end_src
+
+* Evil mode
+#+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
+(use-package evil
+  :ensure (:wait t) ; Ensures evil is fully installed before configuring
+  :init
+  (setq evil-want-keybinding nil) ;; avoid conflict with evil-collection
+  (setq evil-want-C-u-scroll t)
+  :demand
+  :config
+  (evil-mode 1))
+#+end_src
+
+** Comment selection
+#+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
+(use-package evil-nerd-commenter
+  :ensure t
+  :after evil
+  :config
+  (general-nvmap
+    "gc" 'evilnc-comment-operator))
+#+end_src
+
+* UI
+** Font
+#+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
+(defun efs/set-font-faces ()
+  (message "Setting faces!")
+  (set-face-attribute 'default nil :font "Iosevka Comfy")
+  (set-face-attribute 'fixed-pitch nil :font "Iosevka Comfy-16")
+  (set-face-attribute 'variable-pitch nil :font "Iosevka Comfy-16"))
+
+(if (daemonp)
+    (add-hook 'after-make-frame-functions
+              (lambda (frame)
+                (with-selected-frame frame
+                  (efs/set-font-faces))))
+  (efs/set-font-faces))
+#+end_src
+
+** Theme
+#+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
+(use-package ef-themes
+  :ensure t)
+
+(use-package modus-themes
+  :ensure t
+  :config
+  (mapc #'disable-theme custom-enabled-themes)
+  ;; (load-theme 'ef-autumn :no-confirm)
+  (load-theme 'modus-vivendi :no-confirm))
+  ;; (load-theme 'modus-operandi-tinted :no-confirm))
+
+(use-package rainbow-delimiters
+  :ensure t
+  :hook (prog-mode . rainbow-delimiters-mode))
+
+(use-package all-the-icons
+  :ensure t
+  :if (display-graphic-p))
+#+end_src
+
+** Dashboard
+#+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
+(use-package dashboard
+  :ensure t
+  :demand t
+  :init
+  (setq initial-buffer-choice #'dashboard-open)
+  :config
+  (dashboard-setup-startup-hook)
+  :general
+  (leader-keys
+    "SPC" '(dashboard-refresh-buffer :which-key "dashboard open"))
+  :custom
+  (dashboard-startup-banner
+   (let ((image-directory "~/projects/lfzmap/org-files/dashboard-gifs/"))
+     (directory-files image-directory t "\\.gif$")))
+  (dashboard-vertically-center-content t)
+  (dashboard-center-content t)
+  (dashboard-startupify-list
+   '(dashboard-insert-banner
+     dashboard-insert-newline
+     ;; dashboard-insert-items
+     dashboard-insert-footer)))
+#+end_src
+
+** Mini-frame: center minibuffer
+#+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
+(use-package mini-frame
+  :ensure t
+  :init
+  (setq mini-frame-show-parameters
+        '((top . 0.5)        ;; Center vertically
+          (left . 0.5)       ;; Center horizontally
+          (width . 0.5)))    ;; Set width as 50% of the frame
+  :config
+  (mini-frame-mode 1))
+#+end_src
+
+** Modeline
+#+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
+(use-package nerd-icons
+  :ensure t)
+
+(use-package doom-modeline
+  :ensure t
+  :init
+  (doom-modeline-mode 1))
+
+;; modeline settings
+'(mode-line ((t (:underline nil :overline nil :box (:line-width 8 :color "#353644" :style nil) :foreground "white" :background "#353644"))))
+'(mode-line-buffer-id ((t (:weight bold))))
+'(mode-line-emphasis ((t (:weight bold))))
+'(mode-line-highlight ((((class color) (min-colors 88)) (:box (:line-width 2 :color "grey40" :style released-button))) (t (:inherit (highlight)))))
+'(mode-line-inactive ((t (:weight light :underline nil :overline nil :box (:line-width 8 :color "#565063" :style nil) :foreground "white" :background "#565063" :inherit (mode-line)))))
+#+end_src
+
+** Make-box
+#+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
+;;(elpaca
+;;  `(make-box
+;;    :host nil
+;;    :repo "https://gist.github.com/c75dcc1365d15a327260051086d68309.git"
+;;    :files ("make-box.el"))
+;;  (require 'make-box))
+#+end_src
+
+* Project management
+#+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
+(use-package projectile
+  :ensure t
+  :diminish projectile-mode
+  :config (projectile-mode)
+  ;; :custom ((projectile-completion-system 'ivy))
+  :bind-keymap
+  ("C-c p" . projectile-command-map)
+  :init
+  (setq projectile-project-search-path '("~/projects/"))
+  :general
+  (leader-keys
+    :states 'normal
+    ;; Projects
+    "p" '(:ignore t :which-key "projects")
+    "p <escape>" '(keyboard-escape-quit :which-key t)
+    "p p" '(projectile-switch-project :which-key "switch project")
+    "p a" '(projectile-add-known-project :which-key "add project")
+    "p r" '(projectile-remove-known-project :which-key "remove project")))
+#+end_src
+
+* Magit for git
+#+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
+(use-package magit
+  :ensure t
+  :general
+  (leader-keys
+    "g" '(:ignore t :which-key "git")
+    "g <escape>" '(keyboard-escape-quit :which-key t)
+    "g g" '(magit-status :which-key "status")
+    "g l" '(magit-log :which-key "log"))
+  (general-nmap
+    "<escape>" #'transient-quit-one))
+
+;; magit+evil
+(use-package evil-collection
+  :ensure t
+  :after evil
+  :demand t
+  :config
+  (evil-collection-init))
+#+end_src
+
+;; Garbage collect unused packages after startup
+(add-hook 'emacs-startup-hook #'elpaca-gc)
+
+* vterm terminal
+#+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
+(use-package vterm
+  :ensure t
+  :config
+  (setq vterm-timer-delay 0.01))
+
+;; toggle between active buffer and a vterm buffer
+(use-package vterm-toggle
+  :ensure t
+  :general
+  (leader-keys
+    "t" '(vterm-toggle :which-key "terminal"))
+  :config
+  ;; Override broken type for the custom variable (optional)
+  (put 'vterm-toggle-hide-hook 'custom-type 'hook))
+#+end_src
+
+* PDF
+#+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
+(use-package pdf-tools
+  :ensure (:type git :host github :repo "vedang/pdf-tools")
+  :demand t
+  :mode ("\\.[pP][dD][fF]\\'" . pdf-view-mode)
+  :magic ("%PDF" . pdf-view-mode)
+  :commands (pdf-view-mode pdf-tools-install)
+  :defer t
+  :hook ((pdf-view-mode-hook . (lambda () (display-line-numbers-mode -1)))
+         (pdf-view-mode-hook . pdf-tools-enable-minor-modes))
+  :init
+  (setq pdf-view-use-scaling t
+        pdf-view-use-imagemagick nil)
+  :config
+  (pdf-tools-install)
+  (define-pdf-cache-function pagelabels))
+
+;; Save PDF view place
+(use-package saveplace-pdf-view
+  :after pdf-tools
+  :ensure t)
+;; Enable save-place globally
+(save-place-mode 1)
+#+end_src
+
+* Modes
+** Python
+#+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
+(use-package pyvenv
+  :ensure t
+  :init
+  (setenv "WORKON_HOME" "~/.envs")
+  :config
+  (pyvenv-mode 1)
+  :general
+  (leader-keys
+    "v" '(pyvenv-workon :which-key "python env")))
+
+(use-package numpydoc
+  :ensure t)
+#+end_src
+
+** Rust
+#+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
+(use-package rust-mode
+  :ensure t)
+(setq rust-format-on-save t)
+(add-hook 'rust-mode-hook
+          (lambda () (prettify-symbols-mode)))
+(use-package ob-rust
+  :ensure t
+  :config
+(with-eval-after-load 'org
+  (require 'ob-rust)
+  (add-to-list 'org-babel-load-languages '(rust . t))))
+#+end_src
+
+** Js
+#+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
+;; (use-package json-mode
+;;   :ensure t)
+(use-package simple-httpd
+  :ensure t)
+;; change default js-mode
+;; (add-to-list 'auto-mode-alist '("\\.js\\'" . js2-mode))
+;; (setq js-indent-level 2)
+#+end_src
+
+** Typescript
+#+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
+(use-package typescript-mode
+  :ensure t)
+#+end_src
+
+** Markdown
+#+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
+(use-package markdown-mode
+  :ensure t
+  :mode ("README\\.md\\'" . gfm-mode)
+  :init (setq markdown-command "multimarkdown")
+  :bind (:map markdown-mode-map
+              ("C-c C-e" . markdown-do)))
+#+end_src
+
+** HTML
+#+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
+(use-package emmet-mode
+  :ensure t)
+#+end_src
+
+** Latex
+#+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
+(setq +latex-viewers '(pdf-tools))
+#+end_src
+
+* Org mode
+** Builtin settings
+#+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
+(defun dw/org-mode-setup ()
+  (org-indent-mode)
+  (variable-pitch-mode 1)
+  (auto-fill-mode 0)
+  (visual-line-mode 1)
+  (setq evil-auto-indent nil))
+
+(use-package org
+  :ensure nil
+  :hook (org-mode . dw/org-mode-setup)
+  :config
+  (setq org-ellipsis " ")
+  (setq org-startup-with-inline-images t)
+  (setq org-format-latex-options (plist-put org-format-latex-options :scale 2.0))
+  (setq org-hide-emphasis-markers t)
+  (setq org-startup-folded t)
+  (setq org-latex-listings t)
+  (setq org-agenda-files '("~/projects/lfzmap/Agenda/Tasks.org"))
+  (setq calendar-week-start-day 1)
+  (setq org-agenda-start-with-log-mode t)
+  (setq org-log-into-drawer t)
+  (setq org-image-actual-width nil)
+  (setq org-emphasis-alist
+	'(("*" (bold :foreground "purple")) 
+          ("/" (italic :foreground "red" )) 
+          ("_" underline :foreground "cyan" ) 
+          ))
+  (setq org-startup-latex-with-latex-preview t)
+  (setq org-latex-listings 'minted
+	org-latex-packages-alist '(("" "minted"))
+	org-latex-pdf-process
+	'("pdflatex -shell-escape -interaction nonstopmode -output-directory %o %f"
+          "pdflatex -shell-escape -interaction nonstopmode -output-directory %o %f"))
+  (setq org-confirm-babel-evaluate nil)
+  (setq org-src-preserve-indentation t)
+  (setq org-edit-src-content-indentation 4)
+  (org-babel-do-load-languages
+   'org-babel-load-languages
+   '((js . t)
+     (python . t)
+     ))
+  :general
+  (leader-keys
+    "o" '(:ignore t :which-key "org")
+    "o <escape>" '(keyboard-escape-quit :which-key t)
+    "o t" '(org-babel-tangle :which-key "tangle")
+    "o r" '(org-ctrl-c-ctrl-c :which-key "run code block")
+    "o p" '(org-latex-export-to-pdf :which-key "export to pdf")
+    "o e" '(org-edit-special :which-key "edit code")))
+
+;; additional addons to org
+(use-package org-contrib
+  :ensure t
+  :after org
+  :config
+  (require 'ox-extra)
+  (ox-extras-activate '(ignore-headlines)))
+
+(use-package org-fragtog
+  :ensure t
+  :config
+  (add-hook 'org-mode-hook 'org-fragtog-mode))
+#+end_src
+** Move images into org-mode
+#+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
+(use-package org-download
+  :ensure t
+  :config
+  (setq org-download-method 'directory)
+  (setq-default org-download-image-dir "~/projects/lfzmap/org-files/img")
+  (setq org-download-heading-lvl nil)
+  (add-hook 'dired-mode-hook 'org-download-enable))
+#+end_src
+
+** modify org appearance
+#+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
+(use-package org-bullets
+  :after org
+  :ensure t
+  :hook (org-mode . org-bullets-mode)
+  :custom
+  (org-bullets-bullet-list '("◉" "○" "⬢" "◆" "▲" "■" "●" "○" "●" "○" "●")))
+#+end_src
+
+** Emacs-Jupyter
+#+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
+(use-package zmq
+  :ensure t)
+
+(use-package jupyter
+  :ensure t
+  :config
+  (add-to-list 'org-babel-load-languages '(jupyter . t))
+  (org-babel-do-load-languages
+   'org-babel-load-languages
+   org-babel-load-languages)
+  ;; (org-babel-jupyter-override-src-block "python")
+  (add-hook 'org-babel-after-execute-hook 'org-redisplay-inline-images)
+  ;; (with-eval-after-load 'org-src
+  ;;   (add-to-list 'org-src-lang-modes '("jupyter-python" . python)))
+  )
+
+(defun my/jupyter-refresh-kernelspecs ()
+    "Refresh Jupyter kernelspecs"
+    (interactive)
+    (jupyter-available-kernelspecs t))
+#+end_src
+
+** Org-journal
+#+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
+  (use-package org-journal
+    :ensure t
+    ;; :bind (("C-c t" . journal-file-today)
+    ;;        ("C-c y" . journal-file-yesterday))
+    :custom
+    (org-journal-dir "~/projects/lfzmap/.journal")
+    ;; (org-journal-file-format "%Y%m%d")
+    ;; (org-journal-date-format "%e %b %Y (%A)")
+    ;; (org-journal-time-format "")
+    )
+#+end_src
+
+* Org Roam
+Fix for completion link https://github.com/org-roam/org-roam/pull/2219: remove that annoying roam::
+#+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
+(use-package org-roam
+  :ensure t
+  :init
+  (setq org-roam-v2-ack t)
+  :custom
+  (org-roam-directory "~/projects/lfzmap/org-files")
+  (org-roam-db-location "~/projects/lfzmap/org-files/org-roam.db")
+  (org-roam-completion-everywhere t)
+  :general
+  (leader-keys
+    "n" '(:ignore t :which-key "notes")
+    "n <escape>" '(keyboard-escape-quit :which-key t)
+    "n f" '(org-roam-node-find :which-key "find note")
+    "n b" '(org-roam-buffer-toggle :which-key "roam buffer")
+    "n i" '(org-roam-node-insert :which-key "insert"))
+  :config
+  (org-roam-setup))
+
+#+end_src
+
+** Org-Roam-UI
+#+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
+(use-package org-roam-ui
+  :ensure (:host github :repo "org-roam/org-roam-ui" :branch "main" :files ("*.el" "out"))
+  :after org-roam
+  :config
+  (setq org-roam-ui-sync-theme t
+        org-roam-ui-follow t
+        org-roam-ui-update-on-save t
+        org-roam-ui-open-on-start t))
+#+end_src
+
+* Snippet insertion
+#+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
+;; (use-package yasnippet
+;;   :ensure t
+;;   :config
+;;   (setq yas-snippet-dirs '("~/.emacs.d/snippets"))
+;;   (yas-global-mode 1)
+;;   )
+(use-package tempel
+  ;; Require trigger prefix before template name when completing.
+  ;; :custom
+  ;; (tempel-trigger-prefix "<")
+  :bind (("M-+" . tempel-complete) ;; Alternative tempel-expand
+         ("M-*" . tempel-insert))
+  :init
+  ;; Setup completion at point
+  (defun tempel-setup-capf ()
+    ;; Add the Tempel Capf to `completion-at-point-functions'.
+    ;; `tempel-expand' only triggers on exact matches. Alternatively use
+    ;; `tempel-complete' if you want to see all matches, but then you
+    ;; should also configure `tempel-trigger-prefix', such that Tempel
+    ;; does not trigger too often when you don't expect it. NOTE: We add
+    ;; `tempel-expand' *before* the main programming mode Capf, such
+    ;; that it will be tried first.
+    (setq-local completion-at-point-functions
+                (cons #'tempel-expand
+                      completion-at-point-functions)))
+  (add-hook 'conf-mode-hook 'tempel-setup-capf)
+  (add-hook 'prog-mode-hook 'tempel-setup-capf)
+  (add-hook 'text-mode-hook 'tempel-setup-capf)
+  :config
+  (setq tempel-path "~/.emacs.d/tempel-snippets.el")
+  )
+
+;; (use-package tempel
+;;   :ensure t
+;;   :config
+;;   (tempel-path "~/.emacs.d/tempel-snippets.el"))
+
+;; (defun tempel-expand-or-next ()
+;;   (interactive)
+;;    (if tempel--active
+;;       (tempel-next 1)
+;;     (tempel-expand t)))
+;; ;; TAB was originally bound to 'indent-for-tab-command.
+;; (define-key evil-insert-state-map (kbd "TAB") 'tempel-expand-or-next)
+#+end_src
+
+* Mini-buffer Completion
+#+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
+(use-package vertico
+  :ensure t
+  :bind (:map vertico-map
+         ("C-j" . vertico-next)
+         ("C-k" . vertico-previous)
+         ("C-f" . vertico-exit)
+         :map minibuffer-local-map
+         ("M-h" . backward-kill-word))
+  :custom
+  (vertico-cycle t)
+  :init
+  (vertico-mode))
+
+(use-package savehist
+  :ensure nil
+  :init
+  (savehist-mode 1))
+
+;; description on right side for each completion recommendation
+(use-package marginalia
+  :after vertico
+  :ensure t
+  :custom
+  (marginalia-annotators '(marginalia-annotators-heavy marginalia-annotators-light nil))
+  :init
+  (marginalia-mode))
+#+end_src
+
+* Completion/Language server client
+#+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
+(use-package hippie-exp
+  :ensure nil
+  :bind ([remap dabbrev-expand] . hippie-expand)
+  :commands (hippie-expand)
+  :custom
+  (dabbrev-ignored-buffer-regexps '("\\.\\(?:pdf\\|jpe?g\\|png\\)\\'"))
+  (dabbrev-upcase-means-case-search t)
+  :config
+  (setopt hippie-expand-try-functions-list
+          '(try-expand-all-abbrevs
+            try-expand-dabbrev
+            try-expand-dabbrev-all-buffers
+            try-expand-dabbrev-from-kill
+            try-complete-lisp-symbol-partially
+            try-complete-lisp-symbol
+            try-complete-file-name-partially
+            try-complete-file-name)))
+(use-package corfu
+  :ensure t
+  ;; Optional customizations
+  :custom
+  (corfu-cycle t)                ;; Enable cycling for `corfu-next/previous'
+  (corfu-auto t)                 ;; Enable auto completion
+  ;; (corfu-separator ?\s)          ;; Orderless field separator
+  ;; (corfu-quit-at-boundary nil)   ;; Never quit at completion boundary
+  ;; (corfu-quit-no-match nil)      ;; Never quit, even if there is no match
+  ;; (corfu-preview-current nil)    ;; Disable current candidate preview
+  ;; (corfu-preselect 'prompt)      ;; Preselect the prompt
+  ;; (corfu-on-exact-match nil)     ;; Configure handling of exact matches
+  ;; (corfu-scroll-margin 5)        ;; Use scroll margin
+
+  ;; Enable Corfu only for certain modes. See also `global-corfu-modes'.
+  ;; :hook ((prog-mode . corfu-mode)
+  ;;        (shell-mode . corfu-mode)
+  ;;        (eshell-mode . corfu-mode))
+
+  ;; Recommended: Enable Corfu globally.  This is recommended since Dabbrev can
+  ;; be used globally (M-/).  See also the customization variable
+  ;; `global-corfu-modes' to exclude certain modes.
+  :init
+  (global-corfu-mode))
+
+(global-set-key (kbd "C-M-i") 'completion-at-point)
+(setq tab-always-indent 'complete)
+;; Emacs 30 and newer: Disable Ispell completion function. As an alternative,
+;; try `cape-dict'.
+(setq text-mode-ispell-word-completion nil)
+;; Emacs 28 and newer: Hide commands in M-x which do not apply to the current
+;; mode.  Corfu commands are hidden, since they are not used via M-x. This
+;; setting is useful beyond Corfu.
+(setq read-extended-command-predicate #'command-completion-default-include-p)
+;; Use Dabbrev with Corfu!
+
+(use-package dabbrev
+  :ensure nil
+  ;; Swap M-/ and C-M-/
+  :bind (("M-/" . dabbrev-completion)
+         ("C-M-/" . dabbrev-expand))
+  :config
+  (add-to-list 'dabbrev-ignored-buffer-regexps "\\` ")
+  ;; Since 29.1, use `dabbrev-ignored-buffer-regexps' on older.
+  (add-to-list 'dabbrev-ignored-buffer-modes 'doc-view-mode)
+  (add-to-list 'dabbrev-ignored-buffer-modes 'pdf-view-mode)
+  (add-to-list 'dabbrev-ignored-buffer-modes 'tags-table-mode))
+;; Add extensions
+(use-package cape
+  :ensure t
+  ;; Bind prefix keymap providing all Cape commands under a mnemonic key.
+  ;; Press C-c p ? to for help.
+  :bind ("C-c p" . cape-prefix-map) ;; Alternative keys: M-p, M-+, ...
+  ;; Alternatively bind Cape commands individually.
+  ;; :bind (("C-c p d" . cape-dabbrev)
+  ;;        ("C-c p h" . cape-history)
+  ;;        ("C-c p f" . cape-file)
+  ;;        ...)
+  :init
+  ;; Add to the global default value of `completion-at-point-functions' which is
+  ;; used by `completion-at-point'.  The order of the functions matters, the
+  ;; first function returning a result wins.  Note that the list of buffer-local
+  ;; completion functions takes precedence over the global list.
+  (add-hook 'completion-at-point-functions #'cape-dabbrev)
+  (add-hook 'completion-at-point-functions #'cape-file)
+  (add-hook 'completion-at-point-functions #'cape-elisp-block)
+  )
+
+;; uv add "python-lsp-server[all]" pylsp-rope python-lsp-ruff python-lsp-black
+(use-package flymake
+  :ensure t)
+
+(use-package eglot
+  :ensure t
+  :defer t
+  :general
+  (leader-keys
+    "e" '(:ignore t :which-key "eglot")
+    "e <escape>" '(keyboard-escape-quit :which-key t)
+    "e e" '(eglot :which-key "start server")
+    "e d" '(eldoc :which-key "eldoc")
+    "e r" '(eglot-rename :which-key "rename")
+    "e f" '(eglot-format-buffer :which-key "format buffer")
+    "e s" '(eglot-shutdown :which-key "shutdown server"))
+  :hook (
+         (python-mode . flyspell-prog-mode)
+         (python-mode . superword-mode)
+         (python-mode . hs-minor-mode)
+         (python-mode . (lambda () (set-fill-column 88))))
+  :config
+  (setq eglot-events-buffer-size 0)
+  ;; gh for doc lookup
+  (with-eval-after-load 'eglot
+    (evil-collection-define-key 'normal 'eglot-mode-map
+      (kbd "gh") 'display-local-help))
+  (setq-default eglot-workspace-configuration
+                '((:pylsp . (:configurationSources ["flake8"]
+						   :plugins (
+							     :pycodestyle (:enabled :json-false)
+							     :mccabe (:enabled :json-false)
+							     :pyflakes (:enabled :json-false)
+							     :flake8 (:enabled :json-false
+									       :maxLineLength 88)
+							     :ruff (:enabled t
+									     :lineLength 88)
+							     :pydocstyle (:enabled t
+										   :convention "numpy")
+							     :yapf (:enabled :json-false)
+							     :autopep8 (:enabled :json-false)
+							     :black (:enabled t
+									      :line_length 88
+									      :cache_config t)))))))
+
+
+(use-package sideline
+  :ensure t
+  :hook (eglot-managed-mode . sideline-mode)
+  :diminish sideline-mode
+  :init
+  (setq sideline-backends-skip-current-line t
+        sideline-order-left 'down
+        sideline-order-right 'up
+        sideline-format-left "%s   "
+        sideline-format-right "   %s"
+        sideline-priority 100
+        sideline-display-backend-name t
+        sideline-backends-right '(sideline-flymake)))
+
+(use-package sideline-flymake
+  :after sideline
+  :ensure t)
+
+(use-package python-black
+  :ensure t
+  :demand t
+  :after python
+  :hook (python-mode . python-black-on-save-mode-enable-dwim))
+#+end_src
+
+* Debugger
+#+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
+(use-package dape
+  :ensure t
+  ;; :preface
+  ;; By default dape shares the same keybinding prefix as `gud'
+  ;; If you do not want to use any prefix, set it to nil.
+  ;; (setq dape-key-prefix "\C-x\C-a")
+
+  ;; :hook
+  ;; Save breakpoints on quit
+  ;; ((kill-emacs . dape-breakpoint-save)
+  ;; Load breakpoints on startup
+  ;;  (after-init . dape-breakpoint-load))
+
+  :init
+  ;; To use window configuration like gud (gdb-mi)
+  ;; (setq dape-buffer-window-arrangement 'gud)
+
+  ;; :config
+  ;; Info buffers to the right
+  (setq dape-buffer-window-arrangement 'right)
+
+  :general
+  (leader-keys
+    "d" '(dape-breakpoint-toggle :which-key "breakpoint"))
+  ;; Global bindings for setting breakpoints with mouse
+  ;; (dape-breakpoint-global-mode)
+
+  ;; Pulse source line (performance hit)
+  ;; (add-hook 'dape-display-source-hook 'pulse-momentary-highlight-one-line)
+
+  ;; To not display info and/or buffers on startup
+  ;; (remove-hook 'dape-start-hook 'dape-info)
+  ;; (remove-hook 'dape-start-hook 'dape-repl)
+
+  ;; To display info and/or repl buffers on stopped
+  ;; (add-hook 'dape-stopped-hook 'dape-info)
+  ;; (add-hook 'dape-stopped-hook 'dape-repl)
+
+  ;; Kill compile buffer on build success
+  ;; (add-hook 'dape-compile-hook 'kill-buffer)
+
+  ;; Save buffers on startup, useful for interpreted languages
+  ;; (add-hook 'dape-start-hook (lambda () (save-some-buffers t t)))
+
+  ;; Projectile users
+  ;; (setq dape-cwd-fn 'projectile-project-root)
+)
+ #+end_src
+
+* Youtube
+#+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
+(use-package yeetube
+  :ensure t
+  :init (define-prefix-command 'my/yeetube-map)
+  :config
+  (setf yeetube-mpv-disable-video t) ;; Disable video output
+  :general
+  (leader-keys
+  "y" '(:ignore t :which-key "youtube")
+  "y <escape>" '(keyboard-escape-quit :which-key t)
+  "y s" '(yeetube-search :which-key "search")
+  "y p" '(yeetube-play :which-key "play")
+  "y v" '(yeetube-mpv-toggle-video :which-key "toggle video")
+  "y q" '(yeetube-mpv-quit :which-key "quit mpv")
+))
+#+end_src
+
+* Misch
+#+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
+(use-package xkcd
+  :ensure t
+  )
+(use-package wttrin
+    :ensure t
+    :commands (wttrin)
+    :custom
+    (wttrin-default-cities '("Chennai"))
+    (url-user-agent "curl"))
+
+(use-package fireplace
+  :ensure t
+  )
+(use-package hackernews
+  :ensure t
+  )
+(use-package emojify
+  :ensure t
+  :hook (after-init . global-emojify-mode))
+;; (use-package pomm
+;;   :straight t
+;;   ;; :commands (pomm pomm-third-time)
+;; )
+;; (setq pomm-audio-player-executable "/usr/bin/mpg123")
+;; (setq pomm-audio-enabled t)
+;; (setq alert-default-style 'libnotify)
+;; (setq pomm-audio-tick-enabled t)
+
+(use-package password-store
+:ensure t)
+#+end_src
+
+* Pomodoro
+#+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
+(setq org-clock-sound "~/projects/lfzmap/sounds/lofi-guitar.wav")
+#+end_src
+
+* Dynamic window tile manager
+#+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
+(use-package edwina
+  :ensure t
+  :config
+  (setq display-buffer-base-action '(display-buffer-below-selected))
+  ;; (edwina-setup-dwm-keys)
+  (edwina-mode 1))
+#+end_src
+
+* Tab bar mode
+#+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
+;; (global-set-key (kbd "s-[") 'tab-bar-switch-to-prev-tab)
+;; (global-set-key (kbd "s-]") 'tab-bar-switch-to-next-tab)
+;; (global-set-key (kbd "s-t") 'tab-bar-new-tab)
+;; (global-set-key (kbd "s-k") 'tab-bar-close-tab)
+;; ;; tab bar settings
+;; '(tab-bar ((t (:inherit mode-line))))
+;; '(tab-bar-tab ((t (:inherit mode-line :foreground "white"))))
+;; '(tab-bar-tab-inactive ((t (:inherit mode-line-inactive :foreground "black"))))
+#+end_src
+
+* Dired
+#+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
+(file-name-shadow-mode 1)
+(add-hook 'rfn-eshadow-update-overlay-hook #'vertico-directory-tidy)
+(setq delete-by-moving-to-trash t)
+(setq dired-dwim-target t)
+;; (add-hook 'dired-mode-hook #'dired-hide-details-mode)
+(setq dired-guess-shell-alist-user
+      '(("\\.\\(png\\|jpe?g\\|tiff\\)" "feh" "xdg-open")
+        ("\\.\\(mp[34]\\|m4a\\|ogg\\|flac\\|webm\\|mkv\\)" "mpv" "xdg-open")
+		    (".*" "xdg-open")))
+#+end_src
+** Icons
+#+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
+;; (load "all-the-icons-dired.el")
+(use-package all-the-icons-dired
+  :ensure t
+  :config
+  (add-hook 'dired-mode-hook 'all-the-icons-dired-mode)
+  )
+#+end_src
+
+* Surround mode
+#+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
+(use-package evil-surround
+  :ensure t
+  :demand t
+  :config
+  (global-evil-surround-mode 1))
+#+end_src
+
+* Treesitter
+#+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
+(use-package tree-sitter
+  :ensure t
+  :config
+  )
+
+  (use-package tree-sitter-langs
+    :ensure t
+    :after tree-sitter
+    :config
+    ;; Enable Tree-sitter only for supported modes
+    (dolist (hook '(python-mode-hook
+                    typescript-mode-hook
+                    js-mode-hook
+                    c-mode-hook
+                    rust-mode-hook))
+    (add-hook hook #'tree-sitter-mode)
+    (add-hook hook #'tree-sitter-hl-mode)))
+#+end_src
+
+* Elfeed for RSS
+#+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
+;; (use-package elfeed
+;;     :custom
+;;     (elfeed-db-directory
+;;     (expand-file-name "elfeed" "~/projects/lfzmap/elfeeddb"))
+;;     (elfeed-show-entry-switch 'display-buffer))
+
+;; ;; maintain feeds in a org file
+;; (use-package elfeed-org)
+;; (elfeed-org)
+;; (setq rmh-elfeed-org-files (list "~/projects/lfzmap/elfeed.org"))
+
+;; ;; (setq elfeed-feeds
+;; ;;       '(("https://protesilaos.com/poems.xml" poem) 
+;; ;;         ("https://protesilaos.com/codelog.xml" emacs)
+;; ;;         ("https://vickiboykis.com/index.xml" techblog)
+;; ;;         ("https://protesilaos.com/politics.xml" politics)))
+
+;; (use-package elfeed-goodies)
+;; (elfeed-goodies/setup)
+;; (setq elfeed-goodies/entry-pane-size 0.5)
+
+#+end_src
+
+** elfeed remove
+https://github.com/skeeto/elfeed/issues/392
+#+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
+;; (defun sk/elfeed-db-remove-entry (id)
+;;   "Removes the entry for ID"
+;;   (avl-tree-delete elfeed-db-index id)
+;;   (remhash id elfeed-db-entries))
+
+;; (defun sk/elfeed-search-remove-selected ()
+;;   "Remove selected entries from database"
+;;   (interactive)
+;;   (let* ((entries (elfeed-search-selected))
+;; 	       (count (length entries)))
+;;     (when (y-or-n-p (format "Delete %d entires?" count))      
+;;       (cl-loop for entry in entries
+;; 	             do (sk/elfeed-db-remove-entry (elfeed-entry-id entry)))))
+;;   (elfeed-search-update--force))
+#+end_src
+
+* Transparency 
+#+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
+(defun kb/toggle-window-transparency (arg)
+  "Toggle transparency for all frames.
+By default, toggles between 100 and 72 for `alpha-background`.
+With a numeric prefix ARG (e.g., C-u 85), sets to that value.
+With any prefix ARG (e.g., C-u), prompts for a value.
+Applies to all current frames and new frames created later."
+  (interactive "P")
+  (let ((transparency
+         (cond
+          ;; Numeric prefix
+          ((numberp arg) arg)
+          ;; Any other prefix arg: prompt
+          (arg (read-number "Set transparency (0-100): "))
+          ;; Default toggle between 100 and 72
+          (t (pcase (frame-parameter nil 'alpha-background)
+               (50 100)
+               (100 50)
+               (_ 100))))))
+    ;; Apply to all current frames
+    (dolist (frame (frame-list))
+      (set-frame-parameter frame 'alpha-background transparency)
+      (set-frame-parameter frame 'alpha transparency))
+    ;; Apply to future frames
+    (setf (alist-get 'alpha-background default-frame-alist) transparency)
+    (setf (alist-get 'alpha default-frame-alist) transparency)))
+#+end_src
+
+
