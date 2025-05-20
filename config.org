@@ -1,7 +1,7 @@
-#+TITLE: Config 
-#+Author: Lafith Mattara
+#+TITLE: Lafith's Literate Dotfile(s)
 
-* Early-init file
+* Emacs
+** Early-init file
 Prevent package.el loading packages prior to their init-file loading. Disables the automatic loading of packages by the built-in package.el system during startup.
 This is commonly done when you use alternative package managers
 
@@ -36,7 +36,7 @@ Some GUI changes before we start.
         tab-line-close-button-show nil) ;; don't show tab close button
 #+end_src
 
-* Setting up elpaca as the package manager
+** Setting up elpaca as the package manager
 
 Taken directly from elpaca documentation.
 
@@ -93,7 +93,7 @@ Install use-package support and enable use-package :ensure support for Elpaca.
 :ensure nil = dont install just configure (for builtin emacs stuff)
 :demand t = load it right now instead of waiting till i use it later
 :ensure (:wait t)   = install the package right now and wait it till it get finished without moving forward.
-* Change some builtin settings in emacs
+** Change some builtin settings in emacs
 
 https://idiomdrottning.org/bad-emacs-defaults
 
@@ -158,7 +158,7 @@ https://idiomdrottning.org/bad-emacs-defaults
   (setq read-extended-command-predicate #'command-completion-default-include-p))
 #+end_src
 
-* Custom key bindings
+** Custom key bindings
 #+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
 (use-package general
   :ensure (:wait t)
@@ -181,7 +181,7 @@ https://idiomdrottning.org/bad-emacs-defaults
                 "i" '((lambda () (interactive) (find-file user-init-file)) :which-key "open init file")))))
 #+end_src
 
-* Transient key bindings (hydra)
+** Transient key bindings (hydra)
 #+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
 
 ;; resolve version incompatibility by force installing latest version of transient
@@ -212,7 +212,7 @@ https://idiomdrottning.org/bad-emacs-defaults
               "b" '(switch-buffer/body :which-key "switch buffer"))))
 #+end_src
 
-* Skip buffers when switching
+** Skip buffers when switching
 #+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
 (defcustom aj8/buffer-skip-regexp
   (rx bos (or "*GNU Emacs*" "*straight-process*" "*Backtrace*" "*Compile-Log*" "*Completions*"
@@ -234,7 +234,7 @@ https://idiomdrottning.org/bad-emacs-defaults
 (setq switch-to-next-buffer-skip 'aj8/buffer-skip-p)
 #+end_src
 
-* Show key recommendations
+** Show key recommendations
 #+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
 (use-package which-key
   :ensure t
@@ -245,7 +245,7 @@ https://idiomdrottning.org/bad-emacs-defaults
   (which-key-mode))
 #+end_src
 
-* Evil mode
+** Evil mode
 #+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
 (use-package evil
   :ensure (:wait t) ; Ensures evil is fully installed before configuring
@@ -257,7 +257,7 @@ https://idiomdrottning.org/bad-emacs-defaults
   (evil-mode 1))
 #+end_src
 
-** Comment selection
+*** Comment selection
 #+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
 (use-package evil-nerd-commenter
   :ensure t
@@ -267,8 +267,8 @@ https://idiomdrottning.org/bad-emacs-defaults
     "gc" 'evilnc-comment-operator))
 #+end_src
 
-* UI
-** Font
+** UI
+*** Font
 #+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
 (defun efs/set-font-faces ()
   (message "Setting faces!")
@@ -284,7 +284,7 @@ https://idiomdrottning.org/bad-emacs-defaults
   (efs/set-font-faces))
 #+end_src
 
-** Theme
+*** Theme
 #+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
 (use-package ef-themes
   :ensure t)
@@ -293,8 +293,8 @@ https://idiomdrottning.org/bad-emacs-defaults
   :ensure t
   :config
   (mapc #'disable-theme custom-enabled-themes)
-  ;; (load-theme 'ef-autumn :no-confirm)
-  (load-theme 'modus-vivendi :no-confirm))
+  (load-theme 'ef-autumn :no-confirm))
+;; (load-theme 'modus-vivendi :no-confirm))
   ;; (load-theme 'modus-operandi-tinted :no-confirm))
 
 (use-package rainbow-delimiters
@@ -306,7 +306,7 @@ https://idiomdrottning.org/bad-emacs-defaults
   :if (display-graphic-p))
 #+end_src
 
-** Dashboard
+*** Dashboard
 #+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
 (use-package dashboard
   :ensure t
@@ -331,7 +331,7 @@ https://idiomdrottning.org/bad-emacs-defaults
      dashboard-insert-footer)))
 #+end_src
 
-** Mini-frame: center minibuffer
+*** Mini-frame: center minibuffer
 #+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
 (use-package mini-frame
   :ensure t
@@ -344,7 +344,7 @@ https://idiomdrottning.org/bad-emacs-defaults
   (mini-frame-mode 1))
 #+end_src
 
-** Modeline
+*** Modeline
 #+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
 (use-package nerd-icons
   :ensure t)
@@ -362,7 +362,7 @@ https://idiomdrottning.org/bad-emacs-defaults
 '(mode-line-inactive ((t (:weight light :underline nil :overline nil :box (:line-width 8 :color "#565063" :style nil) :foreground "white" :background "#565063" :inherit (mode-line)))))
 #+end_src
 
-** Make-box
+*** Make-box
 #+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
 ;;(elpaca
 ;;  `(make-box
@@ -372,7 +372,7 @@ https://idiomdrottning.org/bad-emacs-defaults
 ;;  (require 'make-box))
 #+end_src
 
-* Project management
+** Project management
 #+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
 (use-package projectile
   :ensure t
@@ -394,7 +394,7 @@ https://idiomdrottning.org/bad-emacs-defaults
     "p r" '(projectile-remove-known-project :which-key "remove project")))
 #+end_src
 
-* Magit for git
+** Magit for git
 #+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
 (use-package magit
   :ensure t
@@ -419,7 +419,7 @@ https://idiomdrottning.org/bad-emacs-defaults
 ;; Garbage collect unused packages after startup
 (add-hook 'emacs-startup-hook #'elpaca-gc)
 
-* vterm terminal
+** vterm terminal
 #+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
 (use-package vterm
   :ensure t
@@ -437,7 +437,7 @@ https://idiomdrottning.org/bad-emacs-defaults
   (put 'vterm-toggle-hide-hook 'custom-type 'hook))
 #+end_src
 
-* PDF
+** PDF
 #+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
 (use-package pdf-tools
   :ensure (:type git :host github :repo "vedang/pdf-tools")
@@ -463,8 +463,8 @@ https://idiomdrottning.org/bad-emacs-defaults
 (save-place-mode 1)
 #+end_src
 
-* Modes
-** Python
+** Modes
+*** Python
 #+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
 (use-package pyvenv
   :ensure t
@@ -480,7 +480,7 @@ https://idiomdrottning.org/bad-emacs-defaults
   :ensure t)
 #+end_src
 
-** Rust
+*** Rust
 #+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
 (use-package rust-mode
   :ensure t)
@@ -495,7 +495,7 @@ https://idiomdrottning.org/bad-emacs-defaults
   (add-to-list 'org-babel-load-languages '(rust . t))))
 #+end_src
 
-** Js
+*** Js
 #+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
 ;; (use-package json-mode
 ;;   :ensure t)
@@ -506,13 +506,13 @@ https://idiomdrottning.org/bad-emacs-defaults
 ;; (setq js-indent-level 2)
 #+end_src
 
-** Typescript
+*** Typescript
 #+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
 (use-package typescript-mode
   :ensure t)
 #+end_src
 
-** Markdown
+*** Markdown
 #+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
 (use-package markdown-mode
   :ensure t
@@ -522,19 +522,19 @@ https://idiomdrottning.org/bad-emacs-defaults
               ("C-c C-e" . markdown-do)))
 #+end_src
 
-** HTML
+*** HTML
 #+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
 (use-package emmet-mode
   :ensure t)
 #+end_src
 
-** Latex
+*** Latex
 #+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
 (setq +latex-viewers '(pdf-tools))
 #+end_src
 
-* Org mode
-** Builtin settings
+** Org mode
+*** Builtin settings
 #+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
 (defun dw/org-mode-setup ()
   (org-indent-mode)
@@ -599,7 +599,7 @@ https://idiomdrottning.org/bad-emacs-defaults
   :config
   (add-hook 'org-mode-hook 'org-fragtog-mode))
 #+end_src
-** Move images into org-mode
+*** Move images into org-mode
 #+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
 (use-package org-download
   :ensure t
@@ -610,7 +610,7 @@ https://idiomdrottning.org/bad-emacs-defaults
   (add-hook 'dired-mode-hook 'org-download-enable))
 #+end_src
 
-** modify org appearance
+*** modify org appearance
 #+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
 (use-package org-bullets
   :after org
@@ -620,7 +620,7 @@ https://idiomdrottning.org/bad-emacs-defaults
   (org-bullets-bullet-list '("◉" "○" "⬢" "◆" "▲" "■" "●" "○" "●" "○" "●")))
 #+end_src
 
-** Emacs-Jupyter
+*** Emacs-Jupyter
 #+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
 (use-package zmq
   :ensure t)
@@ -644,7 +644,7 @@ https://idiomdrottning.org/bad-emacs-defaults
     (jupyter-available-kernelspecs t))
 #+end_src
 
-** Org-journal
+*** Org-journal
 #+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
   (use-package org-journal
     :ensure t
@@ -658,7 +658,7 @@ https://idiomdrottning.org/bad-emacs-defaults
     )
 #+end_src
 
-* Org Roam
+** Org Roam
 Fix for completion link https://github.com/org-roam/org-roam/pull/2219: remove that annoying roam::
 #+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
 (use-package org-roam
@@ -681,7 +681,7 @@ Fix for completion link https://github.com/org-roam/org-roam/pull/2219: remove t
 
 #+end_src
 
-** Org-Roam-UI
+*** Org-Roam-UI
 #+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
 (use-package org-roam-ui
   :ensure (:host github :repo "org-roam/org-roam-ui" :branch "main" :files ("*.el" "out"))
@@ -693,7 +693,7 @@ Fix for completion link https://github.com/org-roam/org-roam/pull/2219: remove t
         org-roam-ui-open-on-start t))
 #+end_src
 
-* Snippet insertion
+** Snippet insertion
 #+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
 ;; (use-package yasnippet
 ;;   :ensure t
@@ -741,7 +741,7 @@ Fix for completion link https://github.com/org-roam/org-roam/pull/2219: remove t
 ;; (define-key evil-insert-state-map (kbd "TAB") 'tempel-expand-or-next)
 #+end_src
 
-* Mini-buffer Completion
+** Mini-buffer Completion
 #+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
 (use-package vertico
   :ensure t
@@ -771,7 +771,7 @@ Fix for completion link https://github.com/org-roam/org-roam/pull/2219: remove t
   (marginalia-mode))
 #+end_src
 
-* Completion/Language server client
+** Completion/Language server client
 #+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
 (use-package hippie-exp
   :ensure nil
@@ -929,7 +929,7 @@ Fix for completion link https://github.com/org-roam/org-roam/pull/2219: remove t
   :hook (python-mode . python-black-on-save-mode-enable-dwim))
 #+end_src
 
-* Debugger
+** Debugger
 #+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
 (use-package dape
   :ensure t
@@ -980,7 +980,7 @@ Fix for completion link https://github.com/org-roam/org-roam/pull/2219: remove t
 )
  #+end_src
 
-* Youtube
+** Youtube
 #+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
 (use-package yeetube
   :ensure t
@@ -998,7 +998,7 @@ Fix for completion link https://github.com/org-roam/org-roam/pull/2219: remove t
 ))
 #+end_src
 
-* Misch
+** Misch
 #+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
 (use-package xkcd
   :ensure t
@@ -1032,12 +1032,13 @@ Fix for completion link https://github.com/org-roam/org-roam/pull/2219: remove t
 :ensure t)
 #+end_src
 
-* Pomodoro
+** Pomodoro
 #+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
 (setq org-clock-sound "~/projects/lfzmap/sounds/lofi-guitar.wav")
 #+end_src
 
-* Dynamic window tile manager
+** Dynamic window tile manager
+
 #+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
 (use-package edwina
   :ensure t
@@ -1047,7 +1048,7 @@ Fix for completion link https://github.com/org-roam/org-roam/pull/2219: remove t
   (edwina-mode 1))
 #+end_src
 
-* Tab bar mode
+** Tab bar mode
 #+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
 ;; (global-set-key (kbd "s-[") 'tab-bar-switch-to-prev-tab)
 ;; (global-set-key (kbd "s-]") 'tab-bar-switch-to-next-tab)
@@ -1059,7 +1060,7 @@ Fix for completion link https://github.com/org-roam/org-roam/pull/2219: remove t
 ;; '(tab-bar-tab-inactive ((t (:inherit mode-line-inactive :foreground "black"))))
 #+end_src
 
-* Dired
+** Dired
 #+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
 (file-name-shadow-mode 1)
 (add-hook 'rfn-eshadow-update-overlay-hook #'vertico-directory-tidy)
@@ -1071,7 +1072,7 @@ Fix for completion link https://github.com/org-roam/org-roam/pull/2219: remove t
         ("\\.\\(mp[34]\\|m4a\\|ogg\\|flac\\|webm\\|mkv\\)" "mpv" "xdg-open")
 		    (".*" "xdg-open")))
 #+end_src
-** Icons
+*** Icons
 #+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
 ;; (load "all-the-icons-dired.el")
 (use-package all-the-icons-dired
@@ -1081,7 +1082,7 @@ Fix for completion link https://github.com/org-roam/org-roam/pull/2219: remove t
   )
 #+end_src
 
-* Surround mode
+** Surround mode
 #+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
 (use-package evil-surround
   :ensure t
@@ -1090,7 +1091,7 @@ Fix for completion link https://github.com/org-roam/org-roam/pull/2219: remove t
   (global-evil-surround-mode 1))
 #+end_src
 
-* Treesitter
+** Treesitter
 #+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
 (use-package tree-sitter
   :ensure t
@@ -1111,7 +1112,7 @@ Fix for completion link https://github.com/org-roam/org-roam/pull/2219: remove t
     (add-hook hook #'tree-sitter-hl-mode)))
 #+end_src
 
-* Elfeed for RSS
+** Elfeed for RSS
 #+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
 ;; (use-package elfeed
 ;;     :custom
@@ -1136,7 +1137,7 @@ Fix for completion link https://github.com/org-roam/org-roam/pull/2219: remove t
 
 #+end_src
 
-** elfeed remove
+*** elfeed remove
 https://github.com/skeeto/elfeed/issues/392
 #+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
 ;; (defun sk/elfeed-db-remove-entry (id)
@@ -1155,7 +1156,7 @@ https://github.com/skeeto/elfeed/issues/392
 ;;   (elfeed-search-update--force))
 #+end_src
 
-* Transparency 
+** Transparency 
 #+begin_src emacs-lisp :tangle "~/.emacs.d/init.el" :mkdirp yes
 (defun kb/toggle-window-transparency (arg)
   "Toggle transparency for all frames.
@@ -1182,6 +1183,71 @@ Applies to all current frames and new frames created later."
     ;; Apply to future frames
     (setf (alist-get 'alpha-background default-frame-alist) transparency)
     (setf (alist-get 'alpha default-frame-alist) transparency)))
+#+end_src
+
+* Bashrc
+** Enable in .bashrc
+Put following inside ~/.bashrc before tangling .bashrc_custom.sh
+#+begin_src bash
+if [ -f "$HOME/.bashrc_custom.sh" ]; then
+    source "$HOME/.bashrc_custom.sh"
+fi
+#+end_src
+
+** Some basic setups
+#+begin_src bash :tangle ~/.bashrc_custom.sh
+# Custom bashrc commands
+
+# disable future warnings from python
+export PYTHONWARNINGS="ignore::FutureWarning"
+
+# customizable prompt using starship
+eval "$(starship init bash)"
+# neofetch like system info displaying tool
+fastfetch -c archey
+
+# setup virtualenvwrapper
+export WORKON_HOME=~/.envs
+mkdir -p $WORKON_HOME
+source /usr/share/virtualenvwrapper/virtualenvwrapper.sh
+#+end_src
+
+** aliases
+#+begin_src bash :tangle ~/.bashrc_custom.sh
+# aliases
+alias emacs="$HOME/emacs-source/emacs-30.1/src/emacs"
+alias emacsdev="$HOME/emacs-source/emacs-dev/src/emacs"
+alias ll='ls -lh'
+alias ua='uv add'
+alias ur='uv run'
+alias c='clear'
+#+end_src
+
+** symlink uv venv into ~/.envs for python virtualenvwrapper and eglot
+#+begin_src bash :tangle ~/.bashrc_custom.sh
+uvlink() {
+    local curr_dir_name
+    curr_dir_name=$(basename "$PWD")
+    local source_venv="$PWD/.venv"
+    local target_dir="$HOME/.envs"
+    local target_link="$target_dir/$curr_dir_name"
+
+    if [ ! -d "$source_venv" ]; then
+        echo "Error: .venv directory does not exist in current directory."
+        return 1
+    fi
+
+    mkdir -p "$target_dir"
+
+    if [ -e "$target_link" ]; then
+        echo "Warning: Target link '$target_link' already exists."
+        return 1
+    fi
+
+    uv add "python-lsp-server[all]" pylsp-rope python-lsp-ruff python-lsp-black
+    ln -s "$source_venv" "$target_link"
+    echo "Linked '$source_venv' -> '$target_link'"
+}
 #+end_src
 
 
